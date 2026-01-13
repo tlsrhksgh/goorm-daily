@@ -3,8 +3,8 @@ import time
 import smtplib
 from email.message import EmailMessage
 from datetime import datetime
-import docker
 from dotenv import load_dotenv
+import docker_check as dc
 
 load_dotenv()
 
@@ -14,7 +14,6 @@ CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "5"))
 GMAIL_USER = os.getenv("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 MAIL_TO = os.getenv("MAIL_TO", "")
-MAIL_SUBJECT_PREFIX = os.getenv("MAIL_SUBJECT_PREFIX", "[DOCKER ALERT]")
 
 def send_mail(subject: str, body: str):
     msg = EmailMessage()
@@ -28,19 +27,26 @@ def send_mail(subject: str, body: str):
         smtp.starttls()
         smtp.ehlo()
         smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        smtp.send_message(msg)      
+        smtp.send_message(msg)
 
-    
+
 def now_time() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def main():
-    if not CONTAINER_NAME:
-        raise SystemExit("DOCKER_CONTAINER_NAME is required")
-    if not (GMAIL_USER and GMAIL_APP_PASSWORD and MAIL_TO):
-        raise SystemExit("GMAIL_USER / GMAIL_APP_PASSWORD / MAIL_TO are required")    
+   while True:
+        error_containers = dc.check_error_container()
+        if error_containers != None:
+            subject = f"[Docker Alert] {error_containers['name']} status: {error_containers['status']}"
+            body = "\n".join([
+                            f"time: {now_time()}",
+                            f"container: {error_containers['name']}",
+                            f"status: {error_containers['status']}",
+                        ])
 
-    send_mail(MAIL_SUBJECT_PREFIX + " Container Monitor Started", "hello")
+            send_mail(subject, body)
+
+        time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
     main()
